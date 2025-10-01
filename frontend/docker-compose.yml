@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:5000
+    depends_on:
+      - backend
+    networks:
+      - celo-network
+
+  backend:
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5000
+    volumes:
+      - ../.env:/app/.env
+    networks:
+      - celo-network
+
+networks:
+  celo-network:
+    driver: bridge
