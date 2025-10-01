@@ -1,14 +1,26 @@
 {
-  "name": "celo-test",
+  "name": "celo-risk-agent",
   "version": "1.0.0",
-  "description": "Test Celo integration with viem",
-  "main": "test.js",
-  "type": "module",
+  "description": "Celo Risk Monitoring Agent",
+  "main": "index.js",
   "scripts": {
-    "start": "node test.js"
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js --network alfajores",
+    "test": "hardhat test"
   },
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "viem": "^2.10.0"
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "chai": "^4.2.0",
+    "ethers": "^6.14.0",
+    "hardhat": "^2.19.1",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.0"
   }
 }
