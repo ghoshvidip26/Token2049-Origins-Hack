@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
 
 export function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -40,6 +41,7 @@ export function Navigation() {
             >
               Alerts
             </Link>
+            <ConnectButton chainStatus="icon" showBalance={false} />
             <Link href="/monitor">
               <Button>Launch Monitor</Button>
             </Link>
@@ -75,6 +77,9 @@ export function Navigation() {
             >
               Alerts
             </Link>
+            <div className="mt-2">
+              <ConnectButton chainStatus="none" showBalance={false} />
+            </div>
             <Link href="/monitor" onClick={() => setMobileMenuOpen(false)}>
               <Button className="w-full mt-2">Launch Monitor</Button>
             </Link>
