@@ -1,648 +1,327 @@
 "use client";
 
-import type React from "react";
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   PaperAirplaneIcon,
-  TrashIcon,
-  ClockIcon,
-  UserIcon,
-  CpuChipIcon,
   PlusIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
   ChatBubbleLeftRightIcon,
-  ArrowDownIcon,
+  CpuChipIcon,
   CubeIcon,
   ChartBarIcon,
   CurrencyDollarIcon,
   SparklesIcon,
-  Bars3Icon,
-  XMarkIcon,
-  MagnifyingGlassIcon,
+  BanknotesIcon,
 } from "@heroicons/react/24/outline";
-import {
-  useChatState,
-  useConversations,
-  useDeleteConversation,
-  useSystemStatus,
-} from "../hooks/useApi";
-import type { Message } from "../../lib/types";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+interface QuickAction {
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action: string;
+}
 
 const ChatInterface: React.FC = () => {
   const [inputMessage, setInputMessage] = useState("");
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const {
-    messages,
-    currentThreadId,
-    isTyping,
-    sendMessage,
-    startNewConversation,
-    isLoading,
-    error,
-  } = useChatState();
-
-  const { data: conversations } = useConversations();
-  const deleteConversation = useDeleteConversation();
-  const { data: systemStatus } = useSystemStatus();
-
-  const isOffline =
-    !systemStatus?.status || systemStatus.status !== "operational";
-
-  // Sample conversations for demo
-  const demoConversations = [
+  const quickActions: QuickAction[] = [
     {
-      thread_id: "demo-1",
-      message_count: 5,
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      messages: [
-        {
-          role: "user" as const,
-          content: "What is Celo blockchain?",
-          timestamp: new Date().toISOString(),
-        },
-        {
-          role: "assistant" as const,
-          content:
-            "Celo is a mobile-first blockchain platform designed to make financial tools accessible to anyone with a mobile phone...",
-          timestamp: new Date().toISOString(),
-        },
-      ],
+      id: "price",
+      icon: <CurrencyDollarIcon className="w-6 h-6 text-orange-500" />,
+      title: "Check CELO Price",
+      description: "Get current market data",
+      action: "What is the current CELO price?",
     },
     {
-      thread_id: "demo-2",
-      message_count: 3,
-      timestamp: new Date(Date.now() - 7200000).toISOString(),
-      messages: [
-        {
-          role: "user" as const,
-          content: "Check CELO price",
-          timestamp: new Date().toISOString(),
-        },
-        {
-          role: "assistant" as const,
-          content: "The current CELO price is approximately $0.68 USD...",
-          timestamp: new Date().toISOString(),
-        },
-      ],
+      id: "block",
+      icon: <CubeIcon className="w-6 h-6 text-cyan-500" />,
+      title: "Latest Block",
+      description: "View blockchain data",
+      action: "Show me the latest block information",
+    },
+    {
+      id: "defi",
+      icon: <SparklesIcon className="w-6 h-6 text-blue-500" />,
+      title: "DeFi Opportunities",
+      description: "Explore yield options",
+      action: "What are the best DeFi opportunities on Celo?",
+    },
+    {
+      id: "stats",
+      icon: <ChartBarIcon className="w-6 h-6 text-yellow-500" />,
+      title: "Network Stats",
+      description: "Check performance",
+      action: "Show me Celo network statistics",
     },
   ];
-
-  const conversationList = conversations?.threads || [];
-
-  const filteredConversations = conversationList.filter((conv) => {
-    if (!searchQuery) return true;
-    const firstMessage = (conv as any).messages?.[0]?.content || "";
-    return firstMessage.toLowerCase().includes(searchQuery.toLowerCase());
-  });
-
-  const displayConversations =
-    filteredConversations.length > 0 ? filteredConversations : [];
-
-  // Demo messages when offline
-  const demoMessages: Message[] = [
-    {
-      role: "assistant",
-      content:
-        "👋 Welcome to the Celo Multi-Agent Assistant! I can help you with:\n\n🔗 **Celo blockchain queries and statistics**\n🌐 **Real-time web search and news**\n🛡️ **Risk management and hedging strategies**\n\nWhat would you like to know about Celo today?",
-      timestamp: new Date().toISOString(),
-    },
-  ];
-
-  const displayMessages = messages?.length ? messages : demoMessages;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleScroll = () => {
-    if (messagesContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } =
-        messagesContainerRef.current;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-      setShowScrollButton(!isNearBottom);
-    }
-  };
-
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isTyping]);
+  }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+    if (!inputMessage.trim()) return;
 
-    const message = inputMessage;
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: inputMessage,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
+    setIsTyping(true);
 
-    if (isOffline) {
-      // Demo response when offline
-      const demoResponse = getDemoResponse(message);
-      console.log("[v0] Demo mode - would send:", message);
-      console.log("[v0] Demo response:", demoResponse);
-      return;
-    }
-
-    try {
-      await sendMessage(message);
-      inputRef.current?.focus();
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
+    // Simulate AI response
+    setTimeout(() => {
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `I'd be happy to help you with that! As your Celo blockchain assistant, I can provide real-time data, market insights, and DeFi opportunities. What specific information would you like to know?`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMessage]);
+      setIsTyping(false);
+    }, 1500);
   };
 
-  const getDemoResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-
-    if (lowerMessage.includes("price") || lowerMessage.includes("celo")) {
-      return "📈 Based on current market data, CELO is trading at approximately $0.68 USD with a 24h change of +2.4%. The market cap is around $342.5M.";
-    }
-
-    if (lowerMessage.includes("block") || lowerMessage.includes("latest")) {
-      return (
-        "🔗 Latest Celo block information:\n- Block Number: 25,847,392\n- Transactions: 142\n- Gas Used: 12.8M\n- Timestamp: " +
-        new Date().toLocaleString()
-      );
-    }
-
-    if (
-      lowerMessage.includes("validator") ||
-      lowerMessage.includes("network")
-    ) {
-      return "🌐 Celo Network Status:\n- Active Validators: 110\n- Network TPS: 65\n- Block Time: ~5 seconds\n- Network Utilization: 78%";
-    }
-
-    if (
-      lowerMessage.includes("defi") ||
-      lowerMessage.includes("yield") ||
-      lowerMessage.includes("pool")
-    ) {
-      return "💰 DeFi opportunities on Celo:\n- Ubeswap provides AMM trading\n- Moola Market for lending\n- Symmetric for advanced portfolio management\n- Various yield farming opportunities available";
-    }
-
-    return (
-      "🤖 I understand you're asking about: \"" +
-      userMessage +
-      '"\n\nIn demo mode, I can help with Celo blockchain queries, price information, network statistics, and DeFi opportunities. Connect to the backend for full AI-powered responses!'
-    );
+  const handleQuickAction = (action: string) => {
+    setInputMessage(action);
+    inputRef.current?.focus();
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const MessageBubble: React.FC<{ message: Message; isLast?: boolean }> = ({
-    message,
-    isLast,
-  }) => {
-    const isUser = message.role === "user";
-
-    return (
-      <div
-        className={`flex items-start gap-3 ${
-          isUser ? "flex-row-reverse" : ""
-        } mb-4`}
-      >
-        <div
-          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-            isUser ? "bg-primary" : "bg-muted"
-          }`}
-          aria-label={isUser ? "User message" : "Assistant message"}
-        >
-          {isUser ? (
-            <UserIcon className="w-4 h-4 text-primary-foreground" />
-          ) : (
-            <CpuChipIcon className="w-4 h-4 text-muted-foreground" />
-          )}
-        </div>
-
-        <div className={`flex-1 max-w-3xl ${isUser ? "text-right" : ""}`}>
-          <div
-            className={`inline-block px-4 py-3 rounded-2xl ${
-              isUser
-                ? "bg-primary text-primary-foreground"
-                : "bg-card border text-card-foreground"
-            }`}
-          >
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-balance">
-              {message.content}
-            </div>
-          </div>
-          <div
-            className={`text-xs text-muted-foreground mt-1 ${
-              isUser ? "text-right" : ""
-            }`}
-          >
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const TypingIndicator = () => (
-    <div
-      className="flex items-start gap-3 mb-4"
-      role="status"
-      aria-label="Assistant is typing"
-    >
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-        <CpuChipIcon className="w-4 h-4 text-muted-foreground" />
-      </div>
-      <div className="bg-card border rounded-2xl px-4 py-3">
-        <div className="flex gap-1">
-          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-          <div
-            className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-            style={{ animationDelay: "0.1s" }}
-          ></div>
-          <div
-            className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-            style={{ animationDelay: "0.2s" }}
-          ></div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const QuickActions = () => (
-    <div className="mb-6">
-      <h3 className="text-sm font-medium text-foreground mb-3">
-        Quick Actions
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <button
-          onClick={() => setInputMessage("What's the latest CELO price?")}
-          className="text-left p-4 bg-card border rounded-lg hover:bg-accent hover:border-primary/50 transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-              <CurrencyDollarIcon className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">Check CELO Price</div>
-              <div className="text-xs text-muted-foreground">
-                Get current market data
-              </div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() =>
-            setInputMessage("Show me the latest block information")
-          }
-          className="text-left p-4 bg-card border rounded-lg hover:bg-accent hover:border-primary/50 transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
-              <CubeIcon className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">Latest Block</div>
-              <div className="text-xs text-muted-foreground">
-                View blockchain data
-              </div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() =>
-            setInputMessage("What are the best DeFi opportunities on Celo?")
-          }
-          className="text-left p-4 bg-card border rounded-lg hover:bg-accent hover:border-primary/50 transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/10 rounded-lg group-hover:bg-purple-500/20 transition-colors">
-              <SparklesIcon className="w-5 h-5 text-purple-500" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">DeFi Opportunities</div>
-              <div className="text-xs text-muted-foreground">
-                Explore yield options
-              </div>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setInputMessage("How is the Celo network performing?")}
-          className="text-left p-4 bg-card border rounded-lg hover:bg-accent hover:border-primary/50 transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-500/10 rounded-lg group-hover:bg-orange-500/20 transition-colors">
-              <ChartBarIcon className="w-5 h-5 text-orange-500" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">Network Stats</div>
-              <div className="text-xs text-muted-foreground">
-                Check performance
-              </div>
-            </div>
-          </div>
-        </button>
-      </div>
-    </div>
-  );
-
-  const ErrorDisplay = () => {
-    if (!error) return null;
-    return (
-      <div className="mx-6 mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-        <div className="flex items-center gap-2">
-          <ExclamationTriangleIcon className="w-5 h-5 text-destructive" />
-          <div>
-            <div className="text-sm font-medium text-destructive">
-              Error sending message
-            </div>
-            <div className="text-xs text-destructive/80 mt-1">
-              {error.toString()}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="flex h-screen bg-background">
-      <div
-        className={`${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } fixed md:relative z-20 w-80 bg-card border-r flex flex-col transition-transform duration-300 md:translate-x-0`}
-      >
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-foreground">
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+      {/* Sidebar */}
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">
               Conversations
             </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={startNewConversation}
-                className="p-2 text-primary hover:bg-primary hover:text-primary-foreground rounded-lg transition-colors"
-                aria-label="Start new conversation"
-              >
-                <PlusIcon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="p-2 md:hidden text-muted-foreground hover:bg-accent rounded-lg transition-colors"
-                aria-label="Close sidebar"
-              >
-                <XMarkIcon className="w-4 h-4" />
-              </button>
-            </div>
+            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              <PlusIcon className="w-5 h-5" />
+            </button>
           </div>
-
-          <div className="relative mb-3">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-
-          {isOffline && (
-            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-              <div className="flex items-center gap-2">
-                <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                  Demo Mode
-                </span>
-              </div>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                Connect backend for full functionality
-              </p>
-            </div>
-          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {displayConversations.length > 0 ? (
-            displayConversations.map((conv) => (
-              <div
-                key={conv.thread_id}
-                className={`p-4 border-b hover:bg-accent cursor-pointer transition-colors ${
-                  currentThreadId === conv.thread_id
-                    ? "bg-accent/50 border-primary/20"
-                    : ""
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-foreground line-clamp-1">
-                    {(conv as any).messages?.[0]?.content?.substring(0, 30) ||
-                      `Conversation ${conv.thread_id.slice(-4)}`}
-                    ...
-                  </span>
-                  {deleteConversation && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteConversation.mutate(conv.thread_id);
-                      }}
-                      className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                      aria-label="Delete conversation"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <ClockIcon className="w-3 h-3 mr-1" />
-                  {(conv as any).timestamp
-                    ? new Date((conv as any).timestamp).toLocaleDateString()
-                    : "Recent"}
-                  <span className="ml-2">({conv.message_count} messages)</span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="p-4 text-center text-muted-foreground">
-              <ChatBubbleLeftRightIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-              <p className="text-sm">
-                {searchQuery
-                  ? "No conversations found"
-                  : "No conversations yet"}
-              </p>
-              <p className="text-xs mt-1">
-                {searchQuery
-                  ? "Try a different search"
-                  : "Start a new chat to get started"}
-              </p>
+        {/* Conversations List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <ChatBubbleLeftRightIcon className="w-8 h-8 text-gray-400" />
             </div>
-          )}
+            <p className="text-gray-600 font-medium">No conversations yet</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Start a new chat to get started
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col">
         {/* Chat Header */}
-        <header className="bg-card border-b px-4 md:px-6 py-4">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-2 md:hidden text-muted-foreground hover:bg-accent rounded-lg transition-colors"
-                aria-label="Open sidebar"
-              >
-                <Bars3Icon className="w-5 h-5" />
-              </button>
-              <div className="min-w-0">
-                <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
-                  Celo Multi-Agent Assistant
-                </h1>
-                <p className="text-xs md:text-sm text-muted-foreground truncate">
-                  Ask questions about Celo blockchain, get real-time data, or
-                  search the web
-                </p>
-              </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                Celo Multi-Agent Assistant
+              </h1>
+              <p className="text-sm text-gray-500">
+                Ask questions about Celo blockchain, get real-time data, or
+                search the web
+              </p>
             </div>
-
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {isOffline && (
-                <span className="text-xs bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full">
-                  Demo
-                </span>
-              )}
-
-              <div
-                className={`flex items-center gap-2 text-sm ${
-                  !isOffline ? "text-primary" : "text-muted-foreground"
-                }`}
-                role="status"
-                aria-label={!isOffline ? "Connected" : "Offline"}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    !isOffline ? "bg-primary" : "bg-muted-foreground"
-                  }`}
-                ></div>
-                <span className="hidden sm:inline">
-                  {!isOffline ? "Connected" : "Offline"}
-                </span>
-              </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-gray-700">
+                Connected
+              </span>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* Messages Area */}
-        <main
-          ref={messagesContainerRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-4 md:px-6 py-4"
-        >
+        <div className="flex-1 overflow-y-auto p-6">
           {messages.length === 0 ? (
-            <div className="max-w-2xl mx-auto mt-8">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-                  <CpuChipIcon className="w-8 h-8 text-primary" />
+            <div className="max-w-4xl mx-auto">
+              {/* Welcome Section */}
+              <div className="text-center mb-12 animate-fade-in-up">
+                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-3xl mb-6">
+                  <CpuChipIcon className="w-10 h-10 text-gray-800" />
                 </div>
-                <h2 className="text-2xl font-semibold text-foreground mb-2">
+                <h2 className="text-4xl font-bold text-gray-900 mb-4">
                   Welcome to Celo Assistant
                 </h2>
-                <p className="text-muted-foreground">
+                <p className="text-lg text-gray-600">
                   Get real-time blockchain data, market insights, and DeFi
                   opportunities
                 </p>
               </div>
-              <QuickActions />
+
+              {/* Quick Actions */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Quick Actions
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.id}
+                      onClick={() => handleQuickAction(action.action)}
+                      className="group flex items-start gap-4 p-5 bg-white border border-gray-200 rounded-2xl hover:border-gray-300 hover:shadow-md transition-all duration-200 text-left"
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                        {action.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 mb-1">
+                          {action.title}
+                        </h4>
+                        <p className="text-sm text-gray-500">
+                          {action.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
-            <>
-              {messages.map((message, index) => (
-                <MessageBubble
-                  key={`${message.timestamp}-${index}`}
-                  message={message}
-                  isLast={index === messages.length - 1}
-                />
+            <div className="max-w-4xl mx-auto space-y-6">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-4 ${
+                    message.role === "user" ? "justify-end" : "justify-start"
+                  } animate-fade-in-up`}
+                >
+                  {message.role === "assistant" && (
+                    <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <CpuChipIcon className="w-6 h-6 text-white" />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-2xl px-6 py-4 rounded-2xl ${
+                      message.role === "user"
+                        ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
+                        : "bg-white border border-gray-200 text-gray-900"
+                    }`}
+                  >
+                    <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
+                      {message.content}
+                    </p>
+                  </div>
+                  {message.role === "user" && (
+                    <div className="flex-shrink-0 w-10 h-10 bg-gray-200 rounded-xl flex items-center justify-center">
+                      <span className="text-sm font-medium text-gray-700">
+                        You
+                      </span>
+                    </div>
+                  )}
+                </div>
               ))}
-              {isTyping && <TypingIndicator />}
-            </>
+              {isTyping && (
+                <div className="flex gap-4 justify-start animate-fade-in-up">
+                  <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <CpuChipIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="max-w-2xl px-6 py-4 rounded-2xl bg-white border border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      ></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      ></div>
+                      <div
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
           )}
-          <div ref={messagesEndRef} />
-        </main>
-
-        <ErrorDisplay />
-
-        {/* Scroll to bottom button */}
-        {showScrollButton && (
-          <button
-            onClick={scrollToBottom}
-            className="fixed bottom-24 right-4 md:right-8 p-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-colors"
-            aria-label="Scroll to bottom"
-          >
-            <ArrowDownIcon className="w-4 h-4" />
-          </button>
-        )}
+        </div>
 
         {/* Input Area */}
-        <div className="bg-card border-t px-4 md:px-6 py-4">
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
+        <div className="bg-white border-t border-gray-200 p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="relative">
               <textarea
                 ref={inputRef}
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={
-                  isOffline
-                    ? "Try: 'What's the CELO price?' (Demo mode)"
-                    : "Ask me anything about Celo blockchain..."
-                }
+                placeholder="Ask me anything about Celo blockchain..."
                 rows={1}
-                className="w-full px-4 py-3 border bg-background rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                style={{ minHeight: "44px", maxHeight: "120px" }}
-                aria-label="Message input"
+                className="w-full px-6 py-4 pr-14 bg-white border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-[15px] text-gray-900 placeholder-gray-400"
+                style={{ minHeight: "60px", maxHeight: "200px" }}
               />
-            </div>
-
-            <button
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || isLoading}
-              className="p-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Send message"
-            >
-              {isLoading ? (
-                <ArrowPathIcon className="w-5 h-5 animate-spin" />
-              ) : (
+              <button
+                onClick={handleSendMessage}
+                disabled={!inputMessage.trim()}
+                className="absolute right-3 bottom-3 p-2.5 bg-gray-800 text-white rounded-xl hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 disabled:hover:scale-100"
+              >
                 <PaperAirplaneIcon className="w-5 h-5" />
-              )}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-            <span className="hidden sm:inline">
-              Press Enter to send, Shift+Enter for new line
-            </span>
-            <span className="sm:hidden">Enter to send</span>
-            {isOffline && (
-              <span className="text-yellow-600 dark:text-yellow-400">
-                ⚡ Demo mode
-              </span>
-            )}
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 text-center mt-3">
+              Press{" "}
+              <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                Enter
+              </kbd>{" "}
+              to send,{" "}
+              <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                Shift+Enter
+              </kbd>{" "}
+              for new line
+            </p>
           </div>
         </div>
       </div>
-
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-10 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
     </div>
   );
 };
